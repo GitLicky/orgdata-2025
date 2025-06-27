@@ -42,11 +42,6 @@
       border-radius: 4px;
       pointer-events: none;
     }
-    #scrollHint {
-      font-size: 0.9em;
-      color: #555;
-      margin-top: 5px;
-    }
     #scrollButtons {
       display: flex;
       justify-content: center;
@@ -121,6 +116,18 @@
     .dark-mode td[style*="background-color: rgb(255, 255, 255)"] {
       color: #000 !important;
     }
+    #filters {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 10px;
+    }
+    .filter-group label {
+      margin-right: 5px;
+    }
+    .filter-group select {
+      padding: 4px;
+    }
   </style>
 </head>
 <body>
@@ -133,6 +140,7 @@
       <button id="downloadXLSX">Download Excel</button>
     </div>
   </div>
+  <div id="filters"></div>
   <div id="scrollButtons">
     <button onclick="scrollTable(-200)">⬅️ Scroll Left</button>
     <button onclick="scrollTable(200)">➡️ Scroll Right</button>
@@ -145,6 +153,10 @@
 
   <script>
     let currentData = [];
+    let allHeaders = [];
+    let activeSortColumn = null;
+    let isAscSort = true;
+
     async function loadJSON() {
       const url = 'data.json';
       try {
@@ -167,12 +179,48 @@
 
         const allKeys = Object.keys(data[0]);
         const remainingHeaders = allKeys.filter(key => !preferredOrder.includes(key));
-        const headers = [...preferredOrder, ...remainingHeaders];
+        allHeaders = [...preferredOrder, ...remainingHeaders];
 
-        renderTable(headers, data);
+        renderFilters(data);
+        renderTable(allHeaders, data);
       } catch (error) {
         document.getElementById('status').textContent = "❌ Failed to load JSON.";
       }
+    }
+
+    function renderFilters(data) {
+      const container = document.getElementById('filters');
+      container.innerHTML = '';
+
+      const fieldsToFilter = ["Day of Week", "Genre", "Artist"];
+      fieldsToFilter.forEach(field => {
+        const options = [...new Set(data.map(item => item[field]).filter(Boolean))].sort();
+        if (options.length === 0) return;
+        const group = document.createElement('div');
+        group.classList.add('filter-group');
+        const label = document.createElement('label');
+        label.textContent = field + ':';
+        const select = document.createElement('select');
+        select.dataset.field = field;
+        select.innerHTML = '<option value="">All</option>' + options.map(o => `<option value="${o}">${o}</option>`).join('');
+        select.addEventListener('change', filterData);
+        group.appendChild(label);
+        group.appendChild(select);
+        container.appendChild(group);
+      });
+    }
+
+    function filterData() {
+      const filters = [...document.querySelectorAll('#filters select')].reduce((acc, sel) => {
+        if (sel.value) acc[sel.dataset.field] = sel.value;
+        return acc;
+      }, {});
+
+      const filtered = currentData.filter(row => {
+        return Object.entries(filters).every(([key, val]) => row[key] === val);
+      });
+
+      renderTable(allHeaders, filtered);
     }
 
     function renderTable(headers, data) {
@@ -214,23 +262,23 @@
       });
     }
 
-    function scrollTable(amount) {
-      document.getElementById('tableWrapper').scrollLeft += amount;
-    }
-
     function sortTableBy(column) {
+      const colIndex = allHeaders.indexOf(column);
+      isAscSort = activeSortColumn !== column ? true : !isAscSort;
+      activeSortColumn = column;
+
       const tbody = document.querySelector("tbody");
-      const headers = Array.from(document.querySelectorAll("thead th")).map(th => th.textContent);
-      const colIndex = headers.indexOf(column);
       const rows = Array.from(tbody.rows);
-      const isAsc = tbody.getAttribute("data-sort") !== column;
       rows.sort((a, b) => {
         const aText = a.cells[colIndex]?.textContent.trim().toLowerCase();
         const bText = b.cells[colIndex]?.textContent.trim().toLowerCase();
-        return isAsc ? aText.localeCompare(bText) : bText.localeCompare(aText);
+        return isAscSort ? aText.localeCompare(bText) : bText.localeCompare(aText);
       });
       rows.forEach(row => tbody.appendChild(row));
-      tbody.setAttribute("data-sort", isAsc ? column : "");
+    }
+
+    function scrollTable(amount) {
+      document.getElementById('tableWrapper').scrollLeft += amount;
     }
 
     loadJSON();
@@ -242,44 +290,37 @@
     function getVisibleRows() {
       const rows = Array.from(document.querySelectorAll("tbody tr"))
         .filter(row => row.style.display !== 'none');
-      const headers = Array.from(document.querySelectorAll("thead th")).map(th => th.textContent);
       return rows.map(row => {
-        const cells = Array.from(row.cells);
         const obj = {};
-        headers.forEach((h, i) => {
-          obj[h] = cells[i]?.textContent || "";
+        allHeaders.forEach((h, i) => {
+          obj[h] = row.cells[i]?.textContent || "";
         });
         return obj;
       });
     }
 
     document.getElementById('downloadCSV').addEventListener('click', () => {
-      if (!currentData.length) return;
-      const headers = Array.from(document.querySelectorAll("thead th")).map(th => th.textContent);
+      const headers = allHeaders;
       const visibleRows = getVisibleRows();
       const csvContent = [
         headers.join(','),
         ...visibleRows.map(row => headers.map(h => '"' + (row[h] || '').replace(/"/g, '""') + '"').join(','))
       ].join('\n');
-
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      const date = new Date().toISOString().slice(0, 10);
       a.href = url;
-      a.download = `podcast_data_${date}.csv`;
+      a.download = `podcast_data_${new Date().toISOString().slice(0, 10)}.csv`;
       a.click();
       URL.revokeObjectURL(url);
     });
 
     document.getElementById('downloadXLSX').addEventListener('click', () => {
-      if (!currentData.length) return;
       const visibleRows = getVisibleRows();
       const ws = XLSX.utils.json_to_sheet(visibleRows);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, "Data");
-      const date = new Date().toISOString().slice(0, 10);
-      XLSX.writeFile(wb, `podcast_data_${date}.xlsx`);
+      XLSX.writeFile(wb, `podcast_data_${new Date().toISOString().slice(0, 10)}.xlsx`);
     });
   </script>
 </body>
