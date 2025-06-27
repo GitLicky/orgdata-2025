@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Podcast Data Viewer</title>
   <style>
     body {
@@ -13,10 +14,21 @@
     h1 {
       font-size: 1.5em;
     }
+    #tableWrapper {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      border: 1px solid #ddd;
+      padding-bottom: 1em;
+    }
+    #scrollHint {
+      font-size: 0.9em;
+      color: #555;
+      margin-top: 5px;
+    }
     table {
       border-collapse: collapse;
       width: 100%;
-      margin-top: 20px;
+      min-width: 1000px;
       table-layout: auto;
     }
     th, td {
@@ -100,7 +112,10 @@
     </div>
   </div>
   <p id="status" class="loading">Loading data from <code>data.json</code>...</p>
-  <div id="output"></div>
+  <div id="tableWrapper">
+    <div id="output"></div>
+  </div>
+  <p id="scrollHint">📱 Tip: Swipe left/right to scroll the table on mobile.</p>
 
   <script>
     let currentData = [];
