@@ -55,7 +55,19 @@
         }
 
         const table = document.createElement("table");
-        const headers = Object.keys(data[0]);
+        const preferredOrder = [
+  "Title", "Url", "Date Taken", "Date Posted", "Military Date (Posted)", "Day of Week",
+  "Audio ID", "Filename", "Length", "Artist", "Year", "Genre", "Location"
+];
+
+// Include any other keys that weren't in preferredOrder
+const remainingHeaders = Object.keys(data[0]).filter(
+  key => !preferredOrder.includes(key)
+);
+
+// Combine: preferred first, then extras
+const headers = [...preferredOrder, ...remainingHeaders];
+        
         const thead = document.createElement("thead");
         const headerRow = document.createElement("tr");
         headers.forEach(h => {
