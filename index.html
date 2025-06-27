@@ -7,7 +7,7 @@
     body {
       font-family: sans-serif;
       padding: 20px;
-      color: #000; /* Light mode: black text */
+      color: #000;
       background-color: #fff;
     }
     h1 {
@@ -23,8 +23,8 @@
       border: 1px solid #ccc;
       padding: 6px 10px;
       text-align: left;
-      color: #000; /* Light mode: black text */
-      background-color: #fff; /* Light mode background */
+      color: #000;
+      background-color: #fff;
     }
     th {
       background-color: #f8f8f8;
@@ -56,9 +56,14 @@
       max-width: 400px;
       font-size: 1em;
     }
+    #toggleDark, #downloadCSV {
+      float: right;
+      margin-left: 10px;
+      margin-bottom: 10px;
+    }
     .dark-mode {
       background-color: #1e1e1e;
-      color: #fff; /* Default text color for dark mode */
+      color: #fff;
     }
     .dark-mode table th, .dark-mode table td {
       border-color: #555;
@@ -77,28 +82,27 @@
     }
     .dark-mode td[style*="background-color: #fff"],
     .dark-mode td[style*="background-color: rgb(255, 255, 255)"] {
-      color: #000 !important; /* black text in white cells */
-    }
-    #toggleDark {
-      float: right;
-      margin-bottom: 10px;
+      color: #000 !important;
     }
   </style>
 </head>
 <body>
   <h1>📊 Podcast JSON Viewer</h1>
   <button id="toggleDark">Toggle Dark Mode</button>
+  <button id="downloadCSV">Download CSV</button>
   <input type="text" id="searchBox" placeholder="Search titles, artists, dates, etc...">
   <p id="status" class="loading">Loading data from <code>data.json</code>...</p>
   <div id="output"></div>
 
   <script>
+    let currentData = [];
     async function loadJSON() {
       const url = 'data.json';
       try {
         const response = await fetch(url);
         if (!response.ok) throw new Error("Fetch failed");
         const data = await response.json();
+        currentData = data;
 
         document.getElementById('status').style.display = 'none';
 
@@ -143,7 +147,6 @@
         table.appendChild(tbody);
         document.getElementById('output').appendChild(table);
 
-        // Filter logic
         document.getElementById('searchBox').addEventListener('input', function () {
           const search = this.value.toLowerCase();
           [...tbody.rows].forEach(row => {
@@ -152,7 +155,6 @@
           });
         });
 
-        // Sort logic
         function sortTableBy(column) {
           const colIndex = headers.indexOf(column);
           const rows = Array.from(tbody.rows);
@@ -175,6 +177,29 @@
 
     document.getElementById('toggleDark').addEventListener('click', () => {
       document.body.classList.toggle('dark-mode');
+    });
+
+    document.getElementById('downloadCSV').addEventListener('click', () => {
+      if (!currentData.length) return;
+      const preferredOrder = [
+        "Title", "Url", "Date Taken", "Date Posted", "Military Date (Posted)", "Day of Week",
+        "Audio ID", "Filename", "Length", "Artist", "Year", "Genre", "Location"
+      ];
+      const allKeys = Object.keys(currentData[0]);
+      const headers = [...preferredOrder, ...allKeys.filter(k => !preferredOrder.includes(k))];
+
+      const csvContent = [
+        headers.join(','),
+        ...currentData.map(row => headers.map(h => '"' + (row[h] || '').replace(/"/g, '""') + '"').join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'podcast_data.csv';
+      a.click();
+      URL.revokeObjectURL(url);
     });
   </script>
 </body>
