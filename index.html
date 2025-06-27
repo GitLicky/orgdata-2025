@@ -88,8 +88,10 @@
           "Audio ID", "Filename", "Length", "Artist", "Year", "Genre", "Location"
         ];
 
-        // Restrict to preferred headers only
-        const headers = preferredOrder.filter(h => h in data[0]);
+        // Combine preferred order first, then remaining keys
+        const allKeys = Object.keys(data[0]);
+        const remainingHeaders = allKeys.filter(key => !preferredOrder.includes(key));
+        const headers = [...preferredOrder, ...remainingHeaders];
 
         const table = document.createElement("table");
         const thead = document.createElement("thead");
