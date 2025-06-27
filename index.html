@@ -50,16 +50,20 @@
       background-color: #e2e2e2;
     }
     #searchBox {
-      margin-top: 10px;
       padding: 6px;
       width: 100%;
       max-width: 400px;
       font-size: 1em;
     }
-    #toggleDark, #downloadCSV {
-      float: right;
-      margin-left: 10px;
+    #controls {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
       margin-bottom: 10px;
+    }
+    #toggleDark, #downloadCSV {
+      padding: 6px 12px;
     }
     .dark-mode {
       background-color: #1e1e1e;
@@ -88,9 +92,13 @@
 </head>
 <body>
   <h1>📊 Podcast JSON Viewer</h1>
-  <button id="toggleDark">Toggle Dark Mode</button>
-  <button id="downloadCSV">Download CSV</button>
-  <input type="text" id="searchBox" placeholder="Search titles, artists, dates, etc...">
+  <div id="controls">
+    <input type="text" id="searchBox" placeholder="Search titles, artists, dates, etc...">
+    <div>
+      <button id="toggleDark">Toggle Dark Mode</button>
+      <button id="downloadCSV">Download CSV</button>
+    </div>
+  </div>
   <p id="status" class="loading">Loading data from <code>data.json</code>...</p>
   <div id="output"></div>
 
@@ -181,6 +189,7 @@
 
     document.getElementById('downloadCSV').addEventListener('click', () => {
       if (!currentData.length) return;
+
       const preferredOrder = [
         "Title", "Url", "Date Taken", "Date Posted", "Military Date (Posted)", "Day of Week",
         "Audio ID", "Filename", "Length", "Artist", "Year", "Genre", "Location"
@@ -188,16 +197,28 @@
       const allKeys = Object.keys(currentData[0]);
       const headers = [...preferredOrder, ...allKeys.filter(k => !preferredOrder.includes(k))];
 
+      const visibleRows = Array.from(document.querySelectorAll("tbody tr"))
+        .filter(row => row.style.display !== 'none')
+        .map(row => {
+          const cells = Array.from(row.cells);
+          const obj = {};
+          headers.forEach((h, i) => {
+            obj[h] = cells[i]?.textContent || "";
+          });
+          return obj;
+        });
+
       const csvContent = [
         headers.join(','),
-        ...currentData.map(row => headers.map(h => '"' + (row[h] || '').replace(/"/g, '""') + '"').join(','))
+        ...visibleRows.map(row => headers.map(h => '"' + (row[h] || '').replace(/"/g, '""') + '"').join(','))
       ].join('\n');
 
       const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
+      const date = new Date().toISOString().slice(0, 10);
       a.href = url;
-      a.download = 'podcast_data.csv';
+      a.download = `podcast_data_${date}.csv`;
       a.click();
       URL.revokeObjectURL(url);
     });
