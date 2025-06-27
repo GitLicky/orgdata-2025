@@ -15,6 +15,13 @@
     h1 {
       font-size: 1.5em;
     }
+    #controls {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
     #tableWrapper {
       overflow-x: auto;
       -webkit-overflow-scrolling: touch;
@@ -39,6 +46,18 @@
       font-size: 0.9em;
       color: #555;
       margin-top: 5px;
+    }
+    #scrollButtons {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 10px;
+      gap: 10px;
+    }
+    #columnToggles {
+      margin: 10px 0;
+      max-height: 100px;
+      overflow-y: auto;
+      font-size: 0.9em;
     }
     table {
       border-collapse: collapse;
@@ -82,13 +101,6 @@
       max-width: 400px;
       font-size: 1em;
     }
-    #controls {
-      display: flex;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-bottom: 10px;
-    }
     #toggleDark, #downloadCSV, #downloadXLSX {
       padding: 6px 12px;
     }
@@ -127,6 +139,11 @@
       <button id="downloadXLSX">Download Excel</button>
     </div>
   </div>
+  <div id="scrollButtons">
+    <button onclick="scrollTable(-200)">⬅️ Scroll Left</button>
+    <button onclick="scrollTable(200)">➡️ Scroll Right</button>
+  </div>
+  <div id="columnToggles"></div>
   <p id="status" class="loading">Loading data from <code>data.json</code>...</p>
   <div id="tableWrapper">
     <div id="output"></div>
@@ -135,6 +152,7 @@
 
   <script>
     let currentData = [];
+    let columnVisibility = {};
     async function loadJSON() {
       const url = 'data.json';
       try {
@@ -158,58 +176,89 @@
         const allKeys = Object.keys(data[0]);
         const remainingHeaders = allKeys.filter(key => !preferredOrder.includes(key));
         const headers = [...preferredOrder, ...remainingHeaders];
+        headers.forEach(h => columnVisibility[h] = true);
 
-        const table = document.createElement("table");
-        const thead = document.createElement("thead");
-        const headerRow = document.createElement("tr");
-        headers.forEach(h => {
-          const th = document.createElement("th");
-          th.textContent = h;
-          th.classList.add("sortable");
-          th.addEventListener("click", () => sortTableBy(h));
-          headerRow.appendChild(th);
-        });
-        thead.appendChild(headerRow);
-        table.appendChild(thead);
-
-        const tbody = document.createElement("tbody");
-        data.forEach(item => {
-          const row = document.createElement("tr");
-          headers.forEach(h => {
-            const td = document.createElement("td");
-            td.textContent = item[h] || '';
-            row.appendChild(td);
-          });
-          tbody.appendChild(row);
-        });
-
-        table.appendChild(tbody);
-        document.getElementById('output').appendChild(table);
-
-        document.getElementById('searchBox').addEventListener('input', function () {
-          const search = this.value.toLowerCase();
-          [...tbody.rows].forEach(row => {
-            const match = [...row.cells].some(cell => cell.textContent.toLowerCase().includes(search));
-            row.style.display = match ? '' : 'none';
-          });
-        });
-
-        function sortTableBy(column) {
-          const colIndex = headers.indexOf(column);
-          const rows = Array.from(tbody.rows);
-          const isAsc = tbody.getAttribute("data-sort") !== column;
-          rows.sort((a, b) => {
-            const aText = a.cells[colIndex].textContent.trim();
-            const bText = b.cells[colIndex].textContent.trim();
-            return isAsc ? aText.localeCompare(bText) : bText.localeCompare(aText);
-          });
-          rows.forEach(row => tbody.appendChild(row));
-          tbody.setAttribute("data-sort", isAsc ? column : "");
-        }
-
+        renderTable(headers, data);
+        renderColumnToggles(headers);
       } catch (error) {
         document.getElementById('status').textContent = "❌ Failed to load JSON.";
       }
+    }
+
+    function renderColumnToggles(headers) {
+      const container = document.getElementById('columnToggles');
+      container.innerHTML = '<strong>Toggle Columns:</strong><br>';
+      headers.forEach(h => {
+        const label = document.createElement('label');
+        label.style.marginRight = '10px';
+        label.innerHTML = `<input type="checkbox" checked onchange="toggleColumn('${h}')"> ${h}`;
+        container.appendChild(label);
+      });
+    }
+
+    function toggleColumn(header) {
+      columnVisibility[header] = !columnVisibility[header];
+      renderTable(Object.keys(columnVisibility), currentData);
+    }
+
+    function renderTable(headers, data) {
+      const output = document.getElementById('output');
+      output.innerHTML = '';
+      const table = document.createElement("table");
+      const thead = document.createElement("thead");
+      const headerRow = document.createElement("tr");
+      headers.forEach(h => {
+        if (!columnVisibility[h]) return;
+        const th = document.createElement("th");
+        th.textContent = h;
+        th.classList.add("sortable");
+        th.addEventListener("click", () => sortTableBy(h));
+        headerRow.appendChild(th);
+      });
+      thead.appendChild(headerRow);
+      table.appendChild(thead);
+
+      const tbody = document.createElement("tbody");
+      data.forEach(item => {
+        const row = document.createElement("tr");
+        headers.forEach(h => {
+          if (!columnVisibility[h]) return;
+          const td = document.createElement("td");
+          td.textContent = item[h] || '';
+          row.appendChild(td);
+        });
+        tbody.appendChild(row);
+      });
+
+      table.appendChild(tbody);
+      output.appendChild(table);
+
+      document.getElementById('searchBox').addEventListener('input', function () {
+        const search = this.value.toLowerCase();
+        [...tbody.rows].forEach(row => {
+          const match = [...row.cells].some(cell => cell.textContent.toLowerCase().includes(search));
+          row.style.display = match ? '' : 'none';
+        });
+      });
+    }
+
+    function scrollTable(amount) {
+      document.getElementById('tableWrapper').scrollLeft += amount;
+    }
+
+    function sortTableBy(column) {
+      const headers = Object.keys(columnVisibility).filter(h => columnVisibility[h]);
+      const colIndex = headers.indexOf(column);
+      const tbody = document.querySelector("tbody");
+      const rows = Array.from(tbody.rows);
+      const isAsc = tbody.getAttribute("data-sort") !== column;
+      rows.sort((a, b) => {
+        const aText = a.cells[colIndex]?.textContent.trim();
+        const bText = b.cells[colIndex]?.textContent.trim();
+        return isAsc ? aText.localeCompare(bText) : bText.localeCompare(aText);
+      });
+      rows.forEach(row => tbody.appendChild(row));
+      tbody.setAttribute("data-sort", isAsc ? column : "");
     }
 
     loadJSON();
@@ -221,7 +270,7 @@
     function getVisibleRows() {
       const rows = Array.from(document.querySelectorAll("tbody tr"))
         .filter(row => row.style.display !== 'none');
-      const headers = Array.from(document.querySelectorAll("thead th")).map(th => th.textContent);
+      const headers = Object.keys(columnVisibility).filter(h => columnVisibility[h]);
       return rows.map(row => {
         const cells = Array.from(row.cells);
         const obj = {};
@@ -234,7 +283,7 @@
 
     document.getElementById('downloadCSV').addEventListener('click', () => {
       if (!currentData.length) return;
-      const headers = Array.from(document.querySelectorAll("thead th")).map(th => th.textContent);
+      const headers = Object.keys(columnVisibility).filter(h => columnVisibility[h]);
       const visibleRows = getVisibleRows();
       const csvContent = [
         headers.join(','),
